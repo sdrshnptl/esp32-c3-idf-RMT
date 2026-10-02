@@ -12,7 +12,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 | M2 | `board` + `led_indicator` (LEDC patterns) | `[x]` | 2026-10-02 |
 | M3 | `ir_capture` (RMT RX, raw learn + repeat de-dup) | `[x]` | 2026-10-02 |
 | M4 | `ir_playback` (RMT TX + 38 kHz carrier, repeats) | `[x]` | 2026-10-02 |
-| M5 | `ir_store` (NVS metadata + SPIFFS blobs, export/import) | `[ ]` | — |
+| M5 | `ir_store` (NVS metadata + SPIFFS blobs, export/import) | `[x]` | 2026-10-02 |
 | M6 | `ble_transport` + `protocol` (NimBLE GATT, cJSON RPC, framing) | `[ ]` | — |
 | M7 | `docs/` GitHub Pages Web Bluetooth dashboard | `[ ]` | — |
 | M8 | `hotkey` (GPIO0 short press → ≤8 command sequence) | `[ ]` | — |
@@ -129,9 +129,22 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ## M5 — ir_store
 
-- [ ] NVS: schema version, profiles, button metadata, hotkey sequences
-- [ ] SPIFFS: raw IR blobs, one file per command
-- [ ] `data.export` / `data.import` round-trip
+- [x] NVS (`irstore`): schema version, id counters, profile table, per-profile button tables,
+      hotkey sequence. A schema mismatch wipes the store, because the blobs mirror the in-memory
+      structs
+- [x] SPIFFS (`storage` partition, mounted at `/spiffs`): one file per learned frame
+      (`c%08x.bin`), a validated 22-byte header plus the raw `uint16_t` durations
+- [x] Recursive mutex around every entry point, so BLE / hotkey / capture callbacks can all use it
+- [x] `ir_store_export()` / `ir_store_import()` through read/write callbacks — the bundle is
+      field-by-field little-endian (not a struct dump) so it survives internal layout changes
+- [x] Import wipes first and restores the id counters above every imported id
+- [x] **Verified on hardware (round-trip self-test):** create profile + button + hotkey, export
+      136 bytes, factory reset, import, then verify the profile, button, raw 12-edge frame bytes,
+      playback parameters and the 2-step hotkey all came back intact:
+      `store test: PASS - profile, button, 12-edge frame, playback parameters and a 2-step hotkey
+      all round-tripped through export/import`
+- [x] SPIFFS mounted and reporting `0/233681 bytes used` on a fresh `storage` partition
+- [x] M4 loopback re-checked after this change and still passes (no regression)
 
 ## M6 — ble_transport + protocol
 

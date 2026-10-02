@@ -8,6 +8,7 @@ idf_component_register(SRCS "main.c"
                              ir_types
                              ir_capture
                              ir_playback
+                             ir_store
                              bt
                              esp_driver_rmt
                              esp_driver_gpio

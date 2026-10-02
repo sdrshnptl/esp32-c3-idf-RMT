@@ -1,0 +1,26 @@
+menu "IR store (profiles and commands)"
+
+    config IR_STORE_PARTITION_LABEL
+        string "SPIFFS partition label"
+        default "storage"
+        help
+            Must match the data/spiffs partition in partitions.csv.
+
+    config IR_STORE_MOUNT_POINT
+        string "SPIFFS mount point"
+        default "/spiffs"
+        help
+            Keep this short: it must fit in the 48-byte command path buffers, so
+            anything beyond 32 characters is truncated.
+
+    config IR_STORE_MAX_PROFILES
+        int "Maximum number of profiles"
+        range 1 64
+        default 16
+
+    config IR_STORE_MAX_BUTTONS
+        int "Maximum buttons per profile"
+        range 1 64
+        default 32
+
+endmenu

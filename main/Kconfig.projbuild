@@ -1,5 +1,15 @@
 menu "Application"
 
+    config APP_BRINGUP_STORE_TEST
+        bool "Bring-up: run a storage round-trip test at boot"
+        default y
+        help
+            Exercises NVS + SPIFFS: creates a profile, a button and a hotkey,
+            exports everything into a RAM bundle, wipes the store, imports the
+            bundle back and verifies the data including the raw frame bytes.
+            WARNING: it begins with a factory reset and therefore erases any
+            stored profiles. Disable it once the storage layer is trusted.
+
     config APP_BRINGUP_IR_TX_BLINK
         bool "Bring-up: blink the IR emitter pin before anything else"
         default y

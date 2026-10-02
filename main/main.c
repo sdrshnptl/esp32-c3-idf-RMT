@@ -6,6 +6,7 @@
  */
 
 #include <inttypes.h>
+#include <string.h>
 
 #include "board.h"
 #include "esp_log.h"
@@ -14,6 +15,7 @@
 #include "freertos/task.h"
 #include "ir_capture.h"
 #include "ir_playback.h"
+#include "ir_store.h"
 #include "led_indicator.h"
 #include "sdkconfig.h"
 
@@ -249,6 +251,158 @@ static void emitter_blink_test(void)
 }
 #endif /* CONFIG_APP_BRINGUP_IR_TX_BLINK */
 
+#if CONFIG_APP_BRINGUP_STORE_TEST
+#define STORE_TEST_BUF_SIZE 4096
+
+/* A distinctive 12-edge frame; only the bytes matter for the round trip. */
+static const uint16_t s_store_test_pattern[] = {
+    9000, 4500, 560, 560, 560, 1690, 560, 1690, 560, 560, 560, 1690,
+};
+
+static uint8_t s_bundle[STORE_TEST_BUF_SIZE];
+static size_t s_bundle_len;
+static size_t s_bundle_pos;
+
+static esp_err_t bundle_capture(const void *data, size_t len, void *ctx)
+{
+    (void)ctx;
+    if (s_bundle_len + len > sizeof(s_bundle)) {
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(s_bundle + s_bundle_len, data, len);
+    s_bundle_len += len;
+    return ESP_OK;
+}
+
+static esp_err_t bundle_replay(void *data, size_t len, void *ctx)
+{
+    (void)ctx;
+    if (s_bundle_pos + len > s_bundle_len) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    memcpy(data, s_bundle + s_bundle_pos, len);
+    s_bundle_pos += len;
+    return ESP_OK;
+}
+
+/**
+ * @brief Exercise NVS + SPIFFS + export/import and verify the data comes back intact.
+ *
+ * Destructive by design: it begins with a factory reset so the result is deterministic.
+ */
+static void store_test(void)
+{
+    size_t profiles = 0;
+    size_t commands = 0;
+    size_t used = 0;
+
+    ir_frame_t frame = { 0 };
+    frame.start_level = 0;
+    frame.edge_count = sizeof(s_store_test_pattern) / sizeof(s_store_test_pattern[0]);
+    for (size_t i = 0; i < frame.edge_count; i++) {
+        frame.durations[i] = s_store_test_pattern[i];
+    }
+
+    ir_tx_params_t params = IR_TX_PARAMS_DEFAULT();
+    params.repeats = 2;
+    params.repeat_gap_ms = 40;
+    params.carrier_hz = 36000;
+
+    ESP_LOGI(TAG, "store test: begin");
+    ESP_ERROR_CHECK(ir_store_stats(&profiles, &commands, &used));
+    ESP_LOGI(TAG, "store test: starting with %u profile(s), %u command(s), %u bytes used",
+             (unsigned)profiles, (unsigned)commands, (unsigned)used);
+
+    ESP_ERROR_CHECK(ir_store_factory_reset());
+
+    uint8_t profile_id = 0;
+    ESP_ERROR_CHECK(ir_store_profile_create("Bench", &profile_id));
+
+    uint8_t button_id = 0;
+    ESP_ERROR_CHECK(ir_store_button_save(profile_id, "Power", &frame, &params, &button_id));
+
+    ir_button_meta_t button = { 0 };
+    ESP_ERROR_CHECK(ir_store_button_get(profile_id, button_id, &button));
+
+    ir_hotkey_t hotkey = { 0 };
+    hotkey.profile_id = profile_id;
+    hotkey.step_count = 2;
+    hotkey.steps[0].command_id = button.command_id;
+    hotkey.steps[0].delay_ms = 0;
+    hotkey.steps[1].command_id = button.command_id;
+    hotkey.steps[1].delay_ms = 250;
+    hotkey.steps[1].repeats = 1;
+    ESP_ERROR_CHECK(ir_store_hotkey_set(&hotkey));
+
+    ESP_LOGI(TAG, "store test: created profile %u, button %u, command %" PRIu32,
+             (unsigned)profile_id, (unsigned)button_id, button.command_id);
+
+    s_bundle_len = 0;
+    ESP_ERROR_CHECK(ir_store_export(bundle_capture, NULL));
+    ESP_LOGI(TAG, "store test: exported %u bytes", (unsigned)s_bundle_len);
+
+    /* Wipe, then rebuild everything from the bundle. */
+    ESP_ERROR_CHECK(ir_store_factory_reset());
+    ESP_ERROR_CHECK(ir_store_stats(&profiles, &commands, &used));
+    if (profiles != 0 || commands != 0) {
+        ESP_LOGE(TAG, "store test: FAIL - factory reset left %u profile(s), %u command(s)",
+                 (unsigned)profiles, (unsigned)commands);
+        return;
+    }
+
+    s_bundle_pos = 0;
+    ESP_ERROR_CHECK(ir_store_import(bundle_replay, NULL));
+
+    ir_profile_meta_t check_profile = { 0 };
+    if (ir_store_profile_get(profile_id, &check_profile) != ESP_OK) {
+        ESP_LOGE(TAG, "store test: FAIL - profile did not survive the round trip");
+        return;
+    }
+    if (check_profile.button_count != 1) {
+        ESP_LOGE(TAG, "store test: FAIL - profile reports %u button(s)",
+                 (unsigned)check_profile.button_count);
+        return;
+    }
+
+    ir_button_meta_t check_button = { 0 };
+    if (ir_store_button_get(profile_id, button_id, &check_button) != ESP_OK) {
+        ESP_LOGE(TAG, "store test: FAIL - button did not survive the round trip");
+        return;
+    }
+
+    ir_frame_t check_frame = { 0 };
+    ir_tx_params_t check_params = { 0 };
+    if (ir_store_command_load(check_button.command_id, &check_frame, &check_params) != ESP_OK) {
+        ESP_LOGE(TAG, "store test: FAIL - frame did not survive the round trip");
+        return;
+    }
+    if (check_frame.edge_count != frame.edge_count ||
+        check_frame.start_level != frame.start_level ||
+        memcmp(check_frame.durations, frame.durations, frame.edge_count * sizeof(uint16_t)) != 0) {
+        ESP_LOGE(TAG, "store test: FAIL - frame differs after the round trip");
+        return;
+    }
+    if (check_params.carrier_hz != params.carrier_hz || check_params.repeats != params.repeats ||
+        check_params.repeat_gap_ms != params.repeat_gap_ms ||
+        check_params.duty_percent != params.duty_percent) {
+        ESP_LOGE(TAG, "store test: FAIL - playback parameters differ after the round trip");
+        return;
+    }
+
+    ir_hotkey_t check_hotkey = { 0 };
+    if (ir_store_hotkey_get(&check_hotkey) != ESP_OK || check_hotkey.step_count != 2 ||
+        check_hotkey.profile_id != profile_id || check_hotkey.steps[1].delay_ms != 250 ||
+        check_hotkey.steps[1].repeats != 1) {
+        ESP_LOGE(TAG, "store test: FAIL - hotkey did not survive the round trip");
+        return;
+    }
+
+    ESP_LOGI(TAG, "store test: PASS - profile, button, %u-edge frame, playback parameters and a "
+                  "2-step hotkey all round-tripped through export/import",
+             (unsigned)frame.edge_count);
+}
+#endif /* CONFIG_APP_BRINGUP_STORE_TEST */
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "ESP32-C3 IR remote controller booting (IDF %s)", esp_get_idf_version());
@@ -257,6 +411,7 @@ void app_main(void)
     ESP_ERROR_CHECK(led_indicator_init());
     ESP_ERROR_CHECK(ir_capture_init());
     ESP_ERROR_CHECK(ir_playback_init());
+    ESP_ERROR_CHECK(ir_store_init());
 
 #if CONFIG_APP_BRINGUP_IR_LEARN || CONFIG_APP_BRINGUP_IR_LOOPBACK
     /* Registered before any test runs. An earlier version registered the callback after
@@ -269,6 +424,10 @@ void app_main(void)
     /* Visual bring-up: three quick flashes before settling into a state. */
     ESP_ERROR_CHECK(led_indicator_set_state(LED_STATE_BOOT));
     vTaskDelay(pdMS_TO_TICKS(800));
+
+#if CONFIG_APP_BRINGUP_STORE_TEST
+    store_test();
+#endif
 
 #if CONFIG_APP_BRINGUP_IR_TX_BLINK
     emitter_blink_test();

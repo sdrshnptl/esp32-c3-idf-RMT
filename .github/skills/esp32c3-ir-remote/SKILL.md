@@ -77,6 +77,12 @@ Web Bluetooth dashboard hosted on GitHub Pages. **No Wi-Fi, no on-device web ser
    "receiver saw nothing" for many cycles purely because it ran before `ir_capture_set_callback()`,
    leaving the callback `NULL`. Check the plumbing (callbacks registered, buffers wired) before
    concluding the hardware is at fault.
+10. **`ESP_GOTO_ON_ERROR` / `ESP_GOTO_ON_FALSE` assign to a local variable named `ret`**, not to
+    whatever error variable you happen to have. A function using them must declare `esp_err_t ret;`
+    or the file will not compile.
+11. **A Kconfig `string` interpolated with `%s` into a fixed buffer trips
+    `-Werror=format-truncation`**, because the compiler assumes up to 255 bytes. Bound it with a
+    precision (`"%.32s"`) or the build fails.
 4. GPIO8 is a **strapping pin** and drives the LED — never repurpose it, never add a pulldown.
 5. The IR LED must be driven through a transistor/MOSFET; a bare GPIO cannot source the burst current.
 6. Web Bluetooth needs a **secure context** (GitHub Pages HTTPS or localhost) and a user gesture.
