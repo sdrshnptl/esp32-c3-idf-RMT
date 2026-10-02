@@ -173,8 +173,40 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
       finds nothing, because the attribute database only exists once the host syncs. Under
       `ESP_ERROR_CHECK` that became a reboot loop. Handles are now captured in the
       `gatts_register_cb` during registration.
-- [ ] `idf_component.yml` with `espressif/cjson` (registry confirmed reachable)
-- [ ] `components/protocol` — cJSON RPC dispatcher, learn flow, event notifier
+- [x] `components/protocol/idf_component.yml` declaring `espressif/cjson` — resolved and fetched
+      from the Component Registry into `managed_components/espressif__cjson` (cJSON is not in-tree
+      in ESP-IDF v6)
+- [x] `components/protocol` — cJSON RPC dispatcher, learn flow, event notifier
+- [x] Command surface: `sys.info`/`sys.stats`/`sys.factory_reset`,
+      `profile.list`/`create`/`rename`/`delete`, `button.list`/`learn`/`learn_cancel`/`rename`/
+      `delete`/`waveform`/`play`, `ir.play`, `hotkey.get`/`set`/`clear`
+- [x] Events: `link`, `button.learned`, `button.learn_failed`
+- [x] Envelope `{"id","ok","data"}` / `{"id","ok":false,"err":{"code","msg"}}` with a full error
+      code set; response larger than the limit is replaced by `E_TOO_LARGE` rather than truncated
+- [x] Learn is asynchronous and single-shot: `button.learn` arms the receiver and returns at once,
+      the frame arrives whenever the user presses the button. An oversized frame keeps the session
+      armed so the user can retry, a timeout or a disconnect clears it, and the LED follows
+- [x] **Verified in firmware on hardware:**
+      `protocol: ready (schema 1, request <= 2048 bytes, response <= 4096 bytes)`
+- [x] **Bug found and fixed:** the first protocol build failed with a cascade of
+      "implicit declaration of `ble_link_notify` / `ble_link_mtu` / `ble_link_is_connected` …"
+      because `protocol.c` included every dependency header except `ble_link.h`
+- [x] `main` now REQUIRES `protocol` and calls `protocol_init()` right after `ble_link_init()`;
+      the protocol link handler drives the LED, so boot settles into `LED_STATE_ADVERTISING`
+- [x] All four `APP_BRINGUP_*` self-tests flipped to `default n` (they would otherwise register
+      their own capture callback and fight the protocol layer for the receiver)
+- [x] Stale-build guard applied after flashing: the image contains the protocol strings
+      (`profile.create`, `hotkey.set`, `E_UNKNOWN_CMD`, `button.learned`) and zero `bring-up`
+      strings, confirming the self-tests really are gone and not silently still compiled in
+- [x] **No-Wi-Fi invariant re-verified precisely.** A naive `grep -c 'esp_wifi_|lwip_|esp_netif_'`
+      on the map returns 48 hits and looks alarming, but they are component *names* in generated
+      `esp_err_codes` section names. The real test: the "Archive member included" section extracts
+      **nothing** from `libesp_wifi.a` / `libesp_netif.a` / lwip, and `nm` finds no
+      `esp_wifi_init` / `esp_wifi_start` / `esp_netif_init` / `esp_netif_new`. The only four
+      Wi-Fi-prefixed symbols present are `esp_phy`'s `esp_wifi_power_domain_on/off` (and their
+      `_bt_` aliases at identical addresses), which the **Bluetooth** controller needs because
+      Wi-Fi and BT share the PHY power domain on the C3. These are PHY power helpers, not the
+      Wi-Fi stack.
 - [ ] **Pending external verification:** no Bluetooth adapter on this PC, so discoverability and a
       live connection can only be proven from the phone. Chrome (the real client) will do this at
       the start of M7.

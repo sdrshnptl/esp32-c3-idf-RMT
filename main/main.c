@@ -18,6 +18,7 @@
 #include "ir_playback.h"
 #include "ir_store.h"
 #include "led_indicator.h"
+#include "protocol.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "ir-remote";
@@ -414,9 +415,13 @@ void app_main(void)
     ESP_ERROR_CHECK(ir_playback_init());
     ESP_ERROR_CHECK(ir_store_init());
     ESP_ERROR_CHECK(ble_link_init());
+    ESP_ERROR_CHECK(protocol_init());
 
     ESP_LOGI(TAG, "dashboard service UUID: %s (device \"%s\")", ble_link_service_uuid_str(),
              ble_link_device_name());
+
+    /* The protocol layer drives the LED from the link state, so settle into advertising. */
+    ESP_ERROR_CHECK(led_indicator_set_state(LED_STATE_ADVERTISING));
 
 #if CONFIG_APP_BRINGUP_IR_LEARN || CONFIG_APP_BRINGUP_IR_LOOPBACK
     /* Registered before any test runs. An earlier version registered the callback after

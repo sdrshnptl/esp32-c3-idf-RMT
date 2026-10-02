@@ -2,40 +2,41 @@ menu "Application"
 
     config APP_BRINGUP_STORE_TEST
         bool "Bring-up: run a storage round-trip test at boot"
-        default y
+        default n
         help
             Exercises NVS + SPIFFS: creates a profile, a button and a hotkey,
             exports everything into a RAM bundle, wipes the store, imports the
             bundle back and verifies the data including the raw frame bytes.
             WARNING: it begins with a factory reset and therefore erases any
-            stored profiles. Disable it once the storage layer is trusted.
+            stored profiles.
+            Off by default: it was used to verify ir_store and is now replaced by
+            the protocol layer's own commands.
 
     config APP_BRINGUP_IR_TX_BLINK
         bool "Bring-up: blink the IR emitter pin before anything else"
-        default y
+        default n
         help
             Drives the emitter pin at 2.5 Hz with no carrier for about 20 seconds.
             Watch the IR LED through a phone camera: it must BLINK. A steady glow
             means you are looking at a power indicator LED, not the emitter, or
             that the emitter is not driven by the configured pin.
+            Off by default: it was used to verify the emitter drive.
 
     config APP_BRINGUP_IR_LOOPBACK
         bool "Bring-up: run an IR transmit-to-receive loopback test at boot"
-        default y
+        default n
         help
             Emits a synthetic frame through the IR emitter and checks whether the
-            receiver picks it up. Validates the emitter, the receiver, both RMT
-            channels and the 38 kHz carrier without a remote control or a user
-            present. Requires the emitter to be visible to the receiver.
+            receiver picks it up.
+            Off by default: it was used to verify the IR TX+RX path.
 
     config APP_BRINGUP_IR_LEARN
         bool "Bring-up: auto-arm IR learning at boot"
-        default y
+        default n
         help
-            Temporary bring-up aid for the ir_capture milestone. Arms the IR
-            receiver for a short window after boot and logs the captured frames so
-            the driver can be validated without the dashboard. Disable this once
-            learning is driven over BLE.
+            Arms the IR receiver shortly after boot and logs what it sees, so the
+            driver can be validated without the dashboard.
+            Off by default: the protocol layer now arms learning on request.
 
     config APP_BRINGUP_IR_LEARN_WINDOW_MS
         int "Bring-up learn window (ms)"

@@ -1,0 +1,34 @@
+menu "Protocol (JSON-RPC over BLE)"
+
+    config PROTOCOL_MAX_REQUEST
+        int "Maximum request size (bytes)"
+        range 256 4096
+        default 2048
+        help
+            Inbound JSON larger than this is rejected. Keep it at or below
+            BLE_LINK_RX_MAX, which bounds the transport itself.
+
+    config PROTOCOL_MAX_RESPONSE
+        int "Maximum response size (bytes)"
+        range 512 8192
+        default 4096
+        help
+            Responses larger than this are replaced by an E_TOO_LARGE error instead
+            of being sent in pieces the peer did not ask for.
+
+    config PROTOCOL_WAVEFORM_MAX_EDGES
+        int "Maximum durations returned by button.waveform"
+        range 32 1024
+        default 256
+        help
+            Caps the size of a waveform response. Longer frames are truncated and
+            the response sets "truncated": true.
+
+    config PROTOCOL_LEARN_TIMEOUT_MS
+        int "Default learn window (ms)"
+        range 2000 120000
+        default 20000
+        help
+            Used when button.learn does not specify timeoutMs.
+
+endmenu
