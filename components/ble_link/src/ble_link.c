@@ -357,7 +357,12 @@ static int gap_event(struct ble_gap_event *event, void *arg)
 
 static esp_err_t notify_handle(uint16_t val_handle, const uint8_t *data, size_t len)
 {
-    ESP_RETURN_ON_FALSE(s_connected, ESP_ERR_INVALID_STATE, TAG, "no central connected");
+    /* Racing a disconnect is normal - a reply can be produced just as the peer walks away - so this
+     * is not an error and must not be logged as one. Callers already handle the return code. */
+    if (!s_connected) {
+        ESP_LOGD(TAG, "no central connected, dropping %u bytes", (unsigned)len);
+        return ESP_ERR_INVALID_STATE;
+    }
     ESP_RETURN_ON_FALSE(val_handle != 0, ESP_ERR_INVALID_STATE, TAG, "characteristic not found");
     ESP_RETURN_ON_FALSE(data != NULL || len == 0, ESP_ERR_INVALID_ARG, TAG, "bad payload");
 

@@ -52,9 +52,13 @@ Error codes: `E_PARSE`, `E_INVALID`, `E_UNKNOWN_CMD`, `E_TOO_LARGE`, `E_NO_MEM`,
 
 | Event | Data |
 |---|---|
-| `link` | `{connected, mtu, device}` — on connect and disconnect |
 | `button.learned` | `{profileId, buttonId, commandId, name, edges, startLevel, durations[]}` |
 | `button.learn_failed` | `{reason}` — `timeout`, `frame_too_large`, or a store error name |
+
+There is deliberately **no `link` event**. A central can only be told about a connection after it has
+connected, discovered the service and subscribed to RSP, so a connect-time event is undeliverable by
+construction, and a disconnect-time one has no peer left to receive it. Clients track link state from
+their own GATT callbacks.
 
 ## The learn flow
 

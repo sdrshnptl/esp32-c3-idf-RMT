@@ -14,7 +14,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 | M4 | `ir_playback` (RMT TX + 38 kHz carrier, repeats) | `[x]` | 2026-10-02 |
 | M5 | `ir_store` (NVS metadata + SPIFFS blobs, export/import) | `[x]` | 2026-10-02 |
 | M6 | `ble_link` + `protocol` (NimBLE GATT, cJSON RPC, framing) | `[~]` | — |
-| M7 | `docs/` GitHub Pages Web Bluetooth dashboard | `[ ]` | — |
+| M7 | `docs/` GitHub Pages Web Bluetooth dashboard | `[~]` | — |
 | M8 | `hotkey` (GPIO0 short press → ≤8 command sequence) | `[ ]` | — |
 | M9 | Hardening: WDT, error paths, unit tests, review checklist | `[ ]` | — |
 
@@ -208,15 +208,84 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
       Wi-Fi and BT share the PHY power domain on the C3. These are PHY power helpers, not the
       Wi-Fi stack.
 - [ ] **Pending external verification:** no Bluetooth adapter on this PC, so discoverability and a
-      live connection can only be proven from the phone. Chrome (the real client) will do this at
-      the start of M7.
+      live connection can only be proven from the phone. This is the first thing the M7 dashboard
+      does when it connects.
 
 ## M7 — docs/ dashboard
 
-- [ ] `docs/index.html`, `docs/app.js`, `docs/style.css`, `docs/manifest.webmanifest`, `docs/.nojekyll`
-- [ ] Connect (Web Bluetooth), profile CRUD, learn flow, test play
-- [ ] Hotkey editor (≤8 slots, per-slot delay + repeats)
-- [ ] Import/export, event log, browser-support note
+> No build step, no bundler, no dependencies. GitHub Pages serves these files verbatim, and the
+> page talks to the device directly over Web Bluetooth. This is what makes the "no Wi-Fi" constraint
+> workable: the client is a static page, the transport is Bluetooth.
+
+- [x] `docs/index.html`, `docs/app.js`, `docs/style.css`, `docs/manifest.webmanifest`,
+      `docs/icon.svg`, `docs/.nojekyll`, `docs/README.md`
+- [x] Web Bluetooth transport: `requestDevice()` filtered on the service UUID, CMD/RSP
+      characteristics resolved by UUID, RSP notifications subscribed
+- [x] Client-side framing that **matches the firmware exactly**: `[u16 total][u16 offset]`
+      little-endian, payload sized to `mtu - 3 - 4`
+- [x] **Chunk ordering is enforced, not hoped for.** The firmware reassembler restarts on an
+      out-of-order chunk, so every outbound message goes through a single serialised promise chain
+      and each write is awaited before the next is queued. Two overlapping requests would otherwise
+      corrupt each other.
+- [x] The MTU is not exposed by Web Bluetooth, so the client starts conservative (23) and adopts the
+      real value from `sys.info` before sending anything large
+- [x] Connect / disconnect, profile CRUD, button CRUD, learn flow, play, waveform preview,
+      hotkey editor (≤8 slots, per-slot delay + repeats, reorder, test), device info + stats,
+      factory reset, raw request box, event log with TX/RX/event/error colouring
+- [x] Hotkey editor builds its command picker by walking every profile's buttons, because hotkey
+      steps reference a `commandId`, not a `(profileId, buttonId)` pair
+- [x] Waveform preview drawn on a canvas: levels alternate from the stored `startLevel`, scaled to
+      total frame duration, and `truncated` frames draw a partial trace instead of being refused
+- [x] Frames sourced from the **demodulating receiver idle high** convention are drawn inverted,
+      matching what the hardware actually sees
+- [x] Names are rendered with `textContent`, never `innerHTML`, so a hostile remote name stored on
+      the device cannot inject markup into the page
+- [x] **Verified in a browser:** page renders, all five tabs switch, the log shows
+      `dashboard ready — press Connect`, and no JavaScript errors are raised
+- [x] Browser-support fallback verified for real: the embedded browser reports
+      `navigator.bluetooth === undefined`, and the page correctly shows the
+      "Web Bluetooth is not available here" banner instead of failing silently
+- [x] Validated: `node --check docs/app.js` passes, the manifest is valid JSON, `icon.svg` is
+      valid XML
+- [x] **Pitfall found and handled — the LAN address looks like it works but cannot.** Loading
+      `http://10.145.20.81:8000` from the phone renders the page perfectly (the server binds all
+      interfaces and the phone fetched every asset), yet **Connect can never work**: plain HTTP on a
+      LAN address is not a *secure context*, and Chrome does not expose `navigator.bluetooth`
+      outside one. The page now distinguishes this from "browser does not support Web Bluetooth"
+      and prints the origin plus the three concrete fixes (`adb reverse` + localhost, the
+      `unsafely-treat-insecure-origin-as-secure` flag, or GitHub Pages) instead of silently showing
+      a dead Connect button. Both branches verified in a real browser.
+- [x] **Bug found and fixed — the dashboard could never receive a single reply.**
+      `BluetoothRemoteGATTCharacteristic.value` is a `DataView`, and `DataView` has no `subarray()`,
+      so `onNotify` threw a `TypeError` on the first chunk of every response. The exception escaped
+      into the devtools console (invisible to the app's own log), the promise never settled, and the
+      10 s RPC timeout tore the link down. On hardware this looked exactly like a crash: five
+      identical ~10 s connect → subscribe → disconnect cycles, with the device answering correctly
+      every single time. Fixed by re-viewing the bytes as a `Uint8Array` via
+      `new Uint8Array(view.buffer, view.byteOffset + N, view.byteLength - N)`, and `onNotify` now
+      try/catches and fails pending requests immediately so a client-side throw can never again
+      masquerade as an unresponsive device.
+- [x] **Firmware follow-ups from the same investigation:** the disconnect path logged a misleading
+      `E ble_link: no central connected` at ERROR level for what is a completely normal race (a reply
+      produced just as the peer leaves) — now a `ESP_LOGD` with the caller handling the code. And the
+      `link` event was **removed**: a central can only be told about a connection after it has
+      connected, discovered the service and subscribed, so a connect-time event is undeliverable by
+      construction and a disconnect-time one has no peer left. Sending them cost 5–6 wasted chunk
+      writes per connection and ran cJSON on the **NimBLE host task's 4 KB stack**, which is no place
+      for a recursive JSON printer. The dashboard tracks link state from its own GATT callbacks.
+- [x] Confirmed by log analysis that the M6/M7 "crash" was **not** a fault: no `Guru Meditation`,
+      no `Brownout`, no watchdog, no stack canary, and `reason 531` is HCI 0x13 =
+      `BLE_ERR_REMOTE_USER_TERM_CONN` — the phone hanging up. The board also re-advertised correctly
+      after every cycle, and the store kept `4 profile(s), 1 command(s)` across a reflash.
+- [x] Added `<link rel="icon">` pointing at `icon.svg`, which also stops the `favicon.ico` 404
+- [ ] **Deferred on purpose — import/export UI.** `ir_store_export()`/`import()` exist, but the
+      protocol deliberately does not expose them yet: a full bundle can exceed both the 2 KiB
+      request and 4 KiB response limits. Doing it properly means streaming the bundle over the
+      reserved RAW characteristic with its own offset framing, not raising the caps.
+- [ ] **Pending external verification:** live discovery, connection, learn and play from Chrome on
+      the phone. Serve `docs/` on this PC, `adb reverse tcp:8000 tcp:8000`, then open
+      `http://localhost:8000` in Chrome — localhost is a secure context, so this works without
+      deploying to Pages.
 
 ## M8 — hotkey
 

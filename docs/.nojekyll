@@ -1,0 +1,2 @@
+# GitHub Pages serves this directory verbatim.
+# .nojekyll stops Jekyll from touching the files (and from ignoring names it dislikes).

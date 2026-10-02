@@ -1,0 +1,19 @@
+{
+  "name": "IR Remote Controller",
+  "short_name": "IR Remote",
+  "description": "Web Bluetooth dashboard for the ESP32-C3 infrared recorder and player.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

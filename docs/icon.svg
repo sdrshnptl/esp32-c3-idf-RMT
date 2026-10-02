@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="IR remote">
+  <rect width="512" height="512" rx="96" fill="#0d1117"/>
+  <g fill="none" stroke="#2f81f7" stroke-width="22" stroke-linecap="round">
+    <!-- signal arcs -->
+    <path d="M120 168a120 120 0 0 1 0 176"/>
+    <path d="M392 168a120 120 0 0 0 0 176"/>
+    <!-- remote body -->
+    <rect x="176" y="96" width="160" height="320" rx="34"/>
+    <!-- emitter window -->
+    <circle cx="256" cy="152" r="20" fill="#2f81f7" stroke="none"/>
+    <!-- buttons -->
+    <path d="M212 240h88M212 300h88M212 360h88"/>
+  </g>
+</svg>

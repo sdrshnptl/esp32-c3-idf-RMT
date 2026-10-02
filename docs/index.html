@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0d1117">
+<title>IR Remote — ESP32-C3</title>
+<link rel="icon" href="icon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-main">
+    <h1>IR&nbsp;Remote</h1>
+    <button id="btn-connect" class="primary" type="button">Connect</button>
+  </div>
+  <div class="bar-sub">
+    <span id="link-dot" class="dot off"></span>
+    <span id="link-status">disconnected</span>
+    <span id="link-meta" class="muted"></span>
+  </div>
+</header>
+
+<div id="unsupported" class="banner hidden">
+  <strong id="unsupported-title">Web Bluetooth is not available.</strong>
+  <div id="unsupported-detail"></div>
+</div>
+
+<nav class="tabs" id="tabs">
+  <button type="button" data-tab="profiles" class="active">Profiles</button>
+  <button type="button" data-tab="buttons">Buttons</button>
+  <button type="button" data-tab="hotkey">Hotkey</button>
+  <button type="button" data-tab="device">Device</button>
+  <button type="button" data-tab="log">Log</button>
+</nav>
+
+<main>
+
+  <!-- ── Profiles ─────────────────────────────────────────────────────── -->
+  <section id="tab-profiles" class="tab active">
+    <div class="row">
+      <input id="new-profile" type="text" maxlength="23" placeholder="New remote name, e.g. TV">
+      <button id="btn-add-profile" type="button" class="primary">Add</button>
+    </div>
+    <ul id="profile-list" class="list"><li class="empty">Connect to load profiles.</li></ul>
+  </section>
+
+  <!-- ── Buttons ──────────────────────────────────────────────────────── -->
+  <section id="tab-buttons" class="tab">
+    <div class="row">
+      <label for="profile-select" class="muted">Remote</label>
+      <select id="profile-select"></select>
+    </div>
+    <div class="row">
+      <input id="new-button" type="text" maxlength="23" placeholder="Button name, e.g. Power">
+      <button id="btn-learn" type="button" class="accent">Learn</button>
+      <button id="btn-learn-cancel" type="button" disabled>Cancel</button>
+    </div>
+    <p id="learn-hint" class="hint hidden"></p>
+    <ul id="button-list" class="list"><li class="empty">No remote selected.</li></ul>
+  </section>
+
+  <!-- ── Hotkey ───────────────────────────────────────────────────────── -->
+  <section id="tab-hotkey" class="tab">
+    <p class="hint">
+      A short press on the <b>hotkey button (GPIO&nbsp;0)</b> runs these steps in order,
+      up to <b id="hotkey-max">8</b>.
+    </p>
+    <div class="row">
+      <label for="hotkey-command" class="muted">Command</label>
+      <select id="hotkey-command"></select>
+      <input id="hotkey-delay" type="number" min="0" max="60000" step="10" value="500" title="Delay before this step (ms)">
+      <input id="hotkey-repeats" type="number" min="0" max="10" step="1" value="0" title="Extra repeats">
+      <button id="btn-hotkey-add" type="button">Add</button>
+    </div>
+    <ol id="hotkey-list" class="list"></ol>
+    <div class="row">
+      <button id="btn-hotkey-save" type="button" class="primary">Save to device</button>
+      <button id="btn-hotkey-clear" type="button" class="danger">Clear</button>
+      <button id="btn-hotkey-test" type="button">Test once</button>
+    </div>
+  </section>
+
+  <!-- ── Device ───────────────────────────────────────────────────────── -->
+  <section id="tab-device" class="tab">
+    <dl id="device-info" class="kv"><dd class="empty">Connect to load device info.</dd></dl>
+    <div class="row">
+      <button id="btn-refresh" type="button">Refresh</button>
+      <button id="btn-factory-reset" type="button" class="danger">Factory reset</button>
+    </div>
+    <details class="raw">
+      <summary>Raw request</summary>
+      <textarea id="raw-req" rows="3" spellcheck="false"
+        placeholder='{"cmd":"sys.info"}'></textarea>
+      <button id="btn-raw-send" type="button">Send</button>
+    </details>
+  </section>
+
+  <!-- ── Log ──────────────────────────────────────────────────────────── -->
+  <section id="tab-log" class="tab">
+    <div class="row">
+      <button id="btn-log-clear" type="button">Clear</button>
+      <label class="muted check"><input id="log-autoscroll" type="checkbox" checked> Follow</label>
+    </div>
+    <ol id="log-list" class="log"></ol>
+  </section>
+
+</main>
+
+<dialog id="modal">
+  <form method="dialog">
+    <h3 id="modal-title">Title</h3>
+    <input id="modal-input" type="text" maxlength="23">
+    <menu>
+      <button value="cancel" type="submit">Cancel</button>
+      <button id="modal-ok" value="ok" type="submit" class="primary">OK</button>
+    </menu>
+  </form>
+</dialog>
+
+<div id="toasts" class="toasts"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

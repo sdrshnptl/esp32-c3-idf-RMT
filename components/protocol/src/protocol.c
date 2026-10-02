@@ -818,13 +818,17 @@ static void on_link_state(bool connected, void *ctx)
         }
     }
 
-    cJSON *data = cJSON_CreateObject();
-    cJSON_AddBoolToObject(data, "connected", connected);
-    cJSON_AddNumberToObject(data, "mtu", ble_link_mtu());
-    cJSON_AddStringToObject(data, "device", ble_link_device_name());
-    if (protocol_emit_event("link", data) != ESP_OK) {
-        ESP_LOGW(TAG, "could not emit the link event");
-    }
+    /*
+     * Deliberately no "link" event here.
+     *
+     * A central can only be told about a connection *after* it has connected, discovered the
+     * service and subscribed to RSP - so the connect-time event is undeliverable by construction,
+     * and by disconnect time there is no peer left to receive it. Sending them anyway cost five or
+     * six wasted chunk writes on every connection (at the default MTU that is 16-byte chunks) and
+     * ran cJSON on the NimBLE host task, whose 4 KB stack is no place for a recursive JSON printer.
+     * The dashboard tracks connection state from its own GATT callbacks, which is strictly more
+     * accurate anyway.
+     */
 }
 
 static void on_capture(ir_capture_event_t event, const ir_frame_t *frame, void *ctx)

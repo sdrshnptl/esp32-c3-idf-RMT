@@ -90,6 +90,47 @@ Web Bluetooth dashboard hosted on GitHub Pages. **No Wi-Fi, no on-device web ser
     returns nothing until the host has synced, so characteristic handles must be captured in
     `ble_hs_cfg.gatts_register_cb` (op `BLE_GATT_REGISTER_OP_CHR`, `ctxt->chr.val_handle`).
     Calling find_chr from init and wrapping it in `ESP_ERROR_CHECK` produces a reboot loop.
+14. **The "no Wi-Fi" invariant cannot be checked with a plain `grep` on the map file** — it gives
+    wrong answers in both directions. `grep -c 'esp_wifi_\|lwip_\|esp_netif_' build/*.map` returns
+    ~48 hits that are *not* failures: they are component names inside generated `esp_err_codes`
+    section names, plus the map's archive-list preamble. The real test is (a) the
+    "Archive member included to satisfy reference" section must extract **nothing** from
+    `libesp_wifi.a`, `libesp_netif.a` or lwip, and (b)
+    `nm elf | grep -E 'esp_wifi_init|esp_wifi_start|esp_netif_init|esp_netif_new'` must be empty.
+    With BLE enabled you should still **expect four** Wi-Fi-prefixed symbols:
+    `esp_wifi_power_domain_on/off` plus their `esp_wifi_bt_power_domain_on/off` aliases at identical
+    addresses. They come from `esp_phy` and are required by the **Bluetooth** controller because
+    Wi-Fi and BT share the PHY power domain on the C3. They are PHY power-domain helpers, not the
+    Wi-Fi stack.
+15. **Verify the flashed artifact actually contains the change.** A stale object file has already
+    shipped once in this project (object timestamp older than the source). After flashing, check
+    `strings build/*.elf | grep -c '<new symbol>'` returns non-zero — and check a symbol that should
+    have *disappeared* now returns zero.
+16. **Bring-up self-tests that register a capture callback must be disabled** before the protocol
+    layer takes over, or two callbacks fight over the same receiver. They are `default n`; leaving
+    them `y` is a silent behaviour change, not a harmless extra log.
+17. **Omitting one dependency header from a new component produces a cascade of
+    "implicit declaration of `<dep>_...`" errors.** Read the *function* names in the errors — they
+    name the missing header directly.
+18. **`BluetoothRemoteGATTCharacteristic.value` is a `DataView`, not a `Uint8Array`.** `DataView`
+    has no `subarray()` — that is a TypedArray method. `view.subarray(4)` throws a `TypeError`
+    *inside* the `characteristicvaluechanged` handler, where it is invisible to the app's own logging
+    and escapes to the devtools console. The awaiting promise never settles, so the request dies on
+    its timeout and the client tears the link down. The hardware symptom is a device that answers
+    every request correctly while the browser disconnects on a fixed schedule — five identical ~10 s
+    connect/subscribe/disconnect cycles here, with `reason 531` (= HCI 0x13,
+    `BLE_ERR_REMOTE_USER_TERM_CONN`, i.e. the phone hanging up normally). Use
+    `new Uint8Array(view.buffer, view.byteOffset + N, view.byteLength - N)` instead.
+19. **Always try/catch inside a BLE notification handler** and reject any in-flight requests
+    immediately. An exception thrown there never reaches the app's own log, so a client-side bug
+    presents exactly like an unresponsive device.
+20. **`reason 531` is not a fault.** Subtracting NimBLE's HCI error base (512) gives 19 = 0x13 =
+    `BLE_ERR_REMOTE_USER_TERM_CONN`: the central disconnected deliberately. Real faults announce
+    themselves — `Guru Meditation Error`, `Brownout detector was triggered`,
+    `Task watchdog got triggered`, `Stack canary watchpoint triggered`. Check for those before
+    suspecting the firmware. Related: `ESP_LOGD` strings are removed at compile time when the log
+    level is higher, so `strings elf | grep '<new LOGD text>'` returning 0 does *not* mean a stale
+    build.
 4. GPIO8 is a **strapping pin** and drives the LED — never repurpose it, never add a pulldown.
 5. The IR LED must be driven through a transistor/MOSFET; a bare GPIO cannot source the burst current.
 6. Web Bluetooth needs a **secure context** (GitHub Pages HTTPS or localhost) and a user gesture.
