@@ -1,0 +1,34 @@
+menu "BLE link"
+
+    config BLE_LINK_NAME_PREFIX
+        string "Advertising name prefix"
+        default "IR-RMT"
+        help
+            The last two bytes of the Bluetooth MAC are appended, giving a name
+            like "IR-RMT-1A2B" so several boards can be told apart. The name is
+            advertised in the scan response, because a 128-bit service UUID
+            already consumes most of the advertising payload.
+
+    config BLE_LINK_RX_MAX
+        int "Maximum inbound message size (bytes)"
+        range 256 4096
+        default 2048
+        help
+            Upper bound for a reassembled request. Larger requests are rejected.
+            Two pool buffers plus one reassembly buffer of this size are reserved
+            in static RAM.
+
+    config BLE_LINK_TASK_PRIORITY
+        int "Link task priority"
+        range 1 20
+        default 9
+
+    config BLE_LINK_TASK_STACK
+        int "Link task stack size (bytes)"
+        range 2048 8192
+        default 4096
+        help
+            The RX handler runs on this task, so the stack must cover JSON
+            parsing and storage calls.
+
+endmenu

@@ -83,6 +83,13 @@ Web Bluetooth dashboard hosted on GitHub Pages. **No Wi-Fi, no on-device web ser
 11. **A Kconfig `string` interpolated with `%s` into a fixed buffer trips
     `-Werror=format-truncation`**, because the compiler assumes up to 255 bytes. Bound it with a
     precision (`"%.32s"`) or the build fails.
+12. **NimBLE owns the `ble_transport_*` symbol prefix** (`ble_transport_init`, `ble_transport_deinit`
+    in `nimble/transport.h`). A component exposing those names cannot include the NimBLE headers —
+    the declarations conflict. Use a different prefix (`ble_link_*`).
+13. **`ble_gatts_add_svcs()` does not create the attribute database.** `ble_gatts_find_chr()`
+    returns nothing until the host has synced, so characteristic handles must be captured in
+    `ble_hs_cfg.gatts_register_cb` (op `BLE_GATT_REGISTER_OP_CHR`, `ctxt->chr.val_handle`).
+    Calling find_chr from init and wrapping it in `ESP_ERROR_CHECK` produces a reboot loop.
 4. GPIO8 is a **strapping pin** and drives the LED — never repurpose it, never add a pulldown.
 5. The IR LED must be driven through a transistor/MOSFET; a bare GPIO cannot source the burst current.
 6. Web Bluetooth needs a **secure context** (GitHub Pages HTTPS or localhost) and a user gesture.

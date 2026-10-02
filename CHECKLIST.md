@@ -13,7 +13,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 | M3 | `ir_capture` (RMT RX, raw learn + repeat de-dup) | `[x]` | 2026-10-02 |
 | M4 | `ir_playback` (RMT TX + 38 kHz carrier, repeats) | `[x]` | 2026-10-02 |
 | M5 | `ir_store` (NVS metadata + SPIFFS blobs, export/import) | `[x]` | 2026-10-02 |
-| M6 | `ble_transport` + `protocol` (NimBLE GATT, cJSON RPC, framing) | `[ ]` | — |
+| M6 | `ble_link` + `protocol` (NimBLE GATT, cJSON RPC, framing) | `[~]` | — |
 | M7 | `docs/` GitHub Pages Web Bluetooth dashboard | `[ ]` | — |
 | M8 | `hotkey` (GPIO0 short press → ≤8 command sequence) | `[ ]` | — |
 | M9 | Hardening: WDT, error paths, unit tests, review checklist | `[ ]` | — |
@@ -146,13 +146,38 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] SPIFFS mounted and reporting `0/233681 bytes used` on a fresh `storage` partition
 - [x] M4 loopback re-checked after this change and still passes (no regression)
 
-## M6 — ble_transport + protocol
+## M6 — ble_link + protocol
 
-- [ ] `idf_component.yml` with `espressif/cjson`
-- [ ] NimBLE GATT server: CMD/RSP/RAW/STATUS, MTU 512, advertising + scan response
-- [ ] 4-byte chunk framing, reassembly, bounded JSON parse
-- [ ] JSON-RPC dispatcher + event notifier
-- [ ] Verified with nRF Connect and Chrome
+> **Renamed:** this component is `ble_link`, not `ble_transport`. NimBLE already declares
+> `ble_transport_init()` / `ble_transport_deinit()` for its own HCI transport layer in
+> `nimble/transport.h`; reusing the prefix made the two headers collide at compile time.
+
+- [x] `components/ble_link` — NimBLE peripheral, GATT server, advertising, MTU negotiation
+- [x] GATT layout: primary service `a1e90000-…` with CMD `…0001`, RSP `…0002`, RAW `…0003`,
+      STATUS `…0004`; the service UUID is advertised so Web Bluetooth can filter on it, and the
+      device name goes in the scan response (a 128-bit UUID costs 18 of the 31 adv bytes)
+- [x] 4-byte chunk framing both ways (`[u16 total][u16 offset]`), in-order reassembly, and
+      MTU-sized outbound chunking (`mtu - 3 - 4`)
+- [x] **The NimBLE host task is never blocked:** the GATT access callback only does bounded memcpy
+      work and queues the message; a dedicated link task invokes the RX handler, so the protocol
+      layer may block on NVS/SPIFFS/IR freely
+- [x] Bounded static memory: 2 pool buffers + 1 reassembly buffer, oversized messages rejected,
+      and a full pool drops the message with a warning instead of growing without limit
+- [x] **Verified in firmware on hardware:** `host synced, preferred MTU 512`,
+      `GATT handles: CMD=16 RSP=18 RAW=21 STATUS=24`,
+      `advertising as "IR-RMT-0992" with service a1e90000-6c2b-4f1a-9d3e-b1c2d3e4f5a6`
+- [x] Regression check: the M5 storage round-trip and the M4 IR loopback both still pass
+- [x] Bonus evidence for M5: the store survived a full reflash
+      (`1 profile(s), 1 command(s), 502 bytes in SPIFFS`), proving real NVS+SPIFFS persistence
+- [x] **Bug found and fixed:** `ble_gatts_find_chr()` called straight after `ble_gatts_add_svcs()`
+      finds nothing, because the attribute database only exists once the host syncs. Under
+      `ESP_ERROR_CHECK` that became a reboot loop. Handles are now captured in the
+      `gatts_register_cb` during registration.
+- [ ] `idf_component.yml` with `espressif/cjson` (registry confirmed reachable)
+- [ ] `components/protocol` — cJSON RPC dispatcher, learn flow, event notifier
+- [ ] **Pending external verification:** no Bluetooth adapter on this PC, so discoverability and a
+      live connection can only be proven from the phone. Chrome (the real client) will do this at
+      the start of M7.
 
 ## M7 — docs/ dashboard
 

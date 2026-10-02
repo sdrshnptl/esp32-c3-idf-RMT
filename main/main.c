@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "board.h"
+#include "ble_link.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
@@ -412,6 +413,10 @@ void app_main(void)
     ESP_ERROR_CHECK(ir_capture_init());
     ESP_ERROR_CHECK(ir_playback_init());
     ESP_ERROR_CHECK(ir_store_init());
+    ESP_ERROR_CHECK(ble_link_init());
+
+    ESP_LOGI(TAG, "dashboard service UUID: %s (device \"%s\")", ble_link_service_uuid_str(),
+             ble_link_device_name());
 
 #if CONFIG_APP_BRINGUP_IR_LEARN || CONFIG_APP_BRINGUP_IR_LOOPBACK
     /* Registered before any test runs. An earlier version registered the callback after
