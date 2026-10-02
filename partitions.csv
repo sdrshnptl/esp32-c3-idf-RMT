@@ -1,0 +1,11 @@
+# ESP32-C3 IR Remote Controller — ACTIVE layout (4 MB flash, OTA-ready)
+# Measured 2026-10-02 with `esptool flash_id`: 4MB (XMC), chip rev v0.4.
+# Fallback for a 2 MB part: partitions_2mb.csv
+#
+# Name,     Type, SubType, Offset,   Size,     Flags
+nvs,        data, nvs,     0x9000,   0x6000,
+otadata,    data, ota,     0xF000,   0x2000,
+phy_init,   data, phy,     0x11000,  0x1000,
+ota_0,      app,  ota_0,   0x20000,  0x1D0000,
+ota_1,      app,  ota_1,   0x1F0000, 0x1D0000,
+storage,    data, spiffs,  0x3C0000, 0x40000,

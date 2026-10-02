@@ -1,0 +1,26 @@
+menu "LED indicator"
+
+    config LED_INDICATOR_PWM_FREQ_HZ
+        int "LEDC PWM frequency (Hz)"
+        range 100 40000
+        default 5000
+        help
+            Low-speed LEDC PWM frequency driving the status LED.
+
+    config LED_INDICATOR_PWM_RESOLUTION_BITS
+        int "LEDC duty resolution (bits)"
+        range 8 13
+        default 10
+        help
+            PWM duty resolution. 10 bits gives 1024 brightness levels, which is
+            plenty for indication patterns.
+
+    config LED_INDICATOR_TICK_MS
+        int "Pattern tick period (ms)"
+        range 5 100
+        default 10
+        help
+            Granularity of the pattern engine. Every pattern duration is rounded
+            to a multiple of this value.
+
+endmenu

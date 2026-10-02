@@ -1,0 +1,40 @@
+menu "Board - ESP32-C3 SuperMini pin map"
+
+    config BOARD_IR_RX_GPIO
+        int "IR receiver output GPIO"
+        range 0 21
+        default 4
+        help
+            GPIO connected to the output of the demodulating IR receiver
+            (TSOP1838 / VS1838B class). The receiver idles high.
+
+    config BOARD_IR_TX_GPIO
+        int "IR emitter drive GPIO"
+        range 0 21
+        default 5
+        help
+            GPIO driving the base/gate of the IR LED transistor or MOSFET.
+            Never connect the IR LED directly to this pin.
+
+    config BOARD_HOTKEY_GPIO
+        int "Hotkey button GPIO"
+        range 0 21
+        default 0
+        help
+            Active-low momentary button to GND with the internal pull-up enabled.
+
+    config BOARD_STATUS_LED_GPIO
+        int "Status LED GPIO"
+        range 0 21
+        default 8
+        help
+            Onboard LED. GPIO8 is a strapping pin and is wired that way on the
+            SuperMini, so it must not be repurposed.
+
+    config BOARD_STATUS_LED_ACTIVE_LOW
+        bool "Status LED is active-low"
+        default y
+        help
+            The SuperMini onboard LED illuminates when its GPIO is driven low.
+
+endmenu

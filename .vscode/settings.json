@@ -31,6 +31,7 @@
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=/home/sdrshnptl/esp32-s3-n8r8-cycle-counter/build"
-  ]
+    "--compile-commands-dir=/home/sdrshnptl/esp32-c3-idf-RMT/build"
+  ],
+  "idf.flashType": "UART"
 }

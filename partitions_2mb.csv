@@ -1,0 +1,10 @@
+# ESP32-C3 IR Remote Controller — 2 MB fallback layout
+# Only needed if the board is ever swapped for a 2 MB part: point
+# CONFIG_PARTITION_TABLE_CUSTOM_FILENAME at this file and set
+# CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y. Fits exactly in 2 MiB.
+#
+# Name,     Type, SubType, Offset,   Size,     Flags
+nvs,        data, nvs,     0x9000,   0x5000,
+phy_init,   data, phy,     0xE000,   0x1000,
+factory,    app,  factory, 0x10000,  0x160000,
+storage,    data, spiffs,  0x170000, 0x90000,
