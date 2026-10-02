@@ -50,10 +50,33 @@ Web Bluetooth dashboard hosted on GitHub Pages. **No Wi-Fi, no on-device web ser
 
 ## Pitfall list (learned)
 
-1. `rmt_carrier_config_t.duty_cycle` is a **float**; check its unit in the header of the IDF
-   revision before use.
+1. `rmt_carrier_config_t.duty_cycle` is a **float fraction (0..1)**, not a percentage — the header
+   comment claiming "0~100%" is wrong. Use `0.33f` for a 33 % carrier.
 2. `rmt_new_copy_encoder` requires the payload to already be `rmt_symbol_word_t[]` — not `uint16_t`.
-3. RMT duration fields are 15-bit → any level longer than 32767 µs at 1 MHz resolution must be split.
+3. RMT duration fields are 15-bit → any level longer than 32767 µs at 1 MHz resolution must be split,
+   and `signal_range_max_ns` cannot exceed 32.767 ms at 1 MHz.
+4. **RX overflow is silent by default.** The user buffer passed to `rmt_receive()` is the real limit;
+   without `flags.en_partial_rx` the driver truncates with only a DRAM debug log. Enable it to
+   receive an `is_last == false` chunk as an explicit overflow signal.
+5. **Never call `rmt_receive()` while a reception is already in flight** — it fails with
+   `ESP_ERR_INVALID_STATE` (the channel FSM is `RUN`, not `ENABLE`). Track an `armed` flag, and use
+   `rmt_disable()` + `rmt_enable()` to abort a pending reception and return the channel to a usable
+   state. Verified the hard way: it caused a ~1.9 s reboot loop via `ESP_ERROR_CHECK`.
+6. **`ir_frame_t.durations[]` is `uint16_t` microseconds**, so one stored edge cannot exceed
+   65535 µs. Assigning a larger value fails the build with `-Werror=overflow` (a 200000 µs value
+   silently becomes 3392). Longer levels must be split by `ir_playback`'s symbol builder, and the
+   frame itself can only carry the smaller value.
+7. **A DC pulse on the emitter pin can brown out the board.** Driving GPIO5 continuously tripped
+   the brownout detector (`E BOD: Brownout detector was triggered`), resetting the chip in a loop.
+   Keep test transmissions carrier-modulated (a 33 % duty 38 kHz burst draws ~1/3 the average
+   current), and treat any brownout on transmit as an emitter-drive hardware fault.
+8. **The RMT RX drops the final space of a frame** — after the last mark the line stays idle, so
+   that space merges into the end-of-frame gap. A transmitted N-edge frame comes back as N-1 edges.
+   Do not assert exact edge equality when comparing a transmitted frame with a received one.
+9. **Do not trust a failing self-test before validating the test itself.** The IR loopback reported
+   "receiver saw nothing" for many cycles purely because it ran before `ir_capture_set_callback()`,
+   leaving the callback `NULL`. Check the plumbing (callbacks registered, buffers wired) before
+   concluding the hardware is at fault.
 4. GPIO8 is a **strapping pin** and drives the LED — never repurpose it, never add a pulldown.
 5. The IR LED must be driven through a transistor/MOSFET; a bare GPIO cannot source the burst current.
 6. Web Bluetooth needs a **secure context** (GitHub Pages HTTPS or localhost) and a user gesture.

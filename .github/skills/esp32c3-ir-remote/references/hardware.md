@@ -37,7 +37,9 @@ rmt_tx_channel_config_t tx_cfg = {
 rmt_new_tx_channel(&tx_cfg, &tx_chan);
 rmt_apply_carrier(tx_chan, &(rmt_carrier_config_t){
     .frequency_hz = 38000,
-    .duty_cycle = 33.0f,               // CHECK UNIT in this IDF revision (header: 0~100%)
+    .duty_cycle = 0.33f,               // VERIFIED: a 0..1 fraction, NOT a percentage.
+                                       // The header comment says "0~100%" and is wrong;
+                                       // examples/peripherals/rmt/ir_nec_transceiver uses 0.33.
     .flags.polarity_active_low = 0,
 });
 rmt_new_copy_encoder(&(rmt_copy_encoder_config_t){0}, &enc);
@@ -64,6 +66,21 @@ rmt_receive(rx_chan, buf, sizeof(buf), &(rmt_receive_config_t){
 
 Callback data: `rmt_rx_done_event_data_t { received_symbols, num_symbols, flags.is_last }`.
 The callback runs in ISR context — copy data out and notify a task; never do work there.
+
+## RX buffering limits (verified in the driver source)
+
+- `mem_block_symbols` is only the **hardware** FIFO the channel owns; it must be even and at least
+  `SOC_RMT_MEM_WORDS_PER_CHANNEL` (48 on the ESP32-C3). A channel may occupy several blocks.
+- The **user buffer** passed to `rmt_receive()` is the real capture limit. The ISR accumulates
+  symbols into it across ping-pong interrupts and reports the whole frame once with
+  `is_last = true`.
+- If the user buffer overflows and `flags.en_partial_rx` is **0**, extra symbols are **silently
+  truncated** (only an `ESP_DRAM_LOGD`). With `en_partial_rx = 1` the driver instead delivers a
+  chunk with `is_last = false` — that is the only reliable overflow signal.
+- With `en_partial_rx = 1`, after an `is_last == false` chunk the driver resets its write offset and
+  keeps filling the **same** buffer, so the remainder of that frame must be discarded.
+- `signal_range_max_ns` is capped by the 15-bit idle register: at 1 MHz resolution the maximum is
+  **32.767 ms**, so `signal_range_max_ns` above that is rejected by `rmt_receive()`.
 
 ## Recording format
 

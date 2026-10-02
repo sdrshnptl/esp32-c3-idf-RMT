@@ -1,0 +1,66 @@
+menu "IR capture (RMT RX)"
+
+    config IR_CAPTURE_GLITCH_FILTER_NS
+        int "Glitch filter (ns)"
+        range 0 10000
+        default 1000
+        help
+            Pulses shorter than this are discarded as noise. The shortest pulse in
+            common IR protocols is around 300 us, so 1 us is a safe filter.
+
+    config IR_CAPTURE_FRAME_GAP_MS
+        int "End-of-frame idle gap (ms)"
+        range 5 32
+        default 25
+        help
+            Reception stops when one level persists longer than this, which marks
+            the end of the frame. At the 1 MHz channel resolution the hardware
+            ceiling is 32.767 ms, so larger values are rejected by the driver.
+
+    config IR_CAPTURE_LEARN_WINDOW_MS
+        int "Default learn inactivity window (ms)"
+        range 1000 60000
+        default 15000
+        help
+            Default value used by the bring-up flow. Every captured frame restarts
+            the window, so several buttons can be learned in one session.
+
+    config IR_CAPTURE_DEDUP_WINDOW_MS
+        int "Repeat de-duplication window (ms)"
+        range 50 2000
+        default 400
+        help
+            A frame arriving within this time of the previous one is reported as a
+            repeat instead of a new frame. Helps both full-frame repeats and short
+            repeat codes (for example NEC).
+
+    config IR_CAPTURE_MATCH_TOLERANCE_PERCENT
+        int "Frame match relative tolerance (percent)"
+        range 0 50
+        default 15
+        help
+            Allowed deviation of a duration relative to the shorter of the two
+            durations being compared.
+
+    config IR_CAPTURE_MATCH_TOLERANCE_US
+        int "Frame match absolute tolerance (us)"
+        range 0 500
+        default 100
+        help
+            Absolute deviation always accepted in addition to the relative
+            tolerance, so that very short durations still compare reliably.
+
+    config IR_CAPTURE_TASK_PRIORITY
+        int "Capture task priority"
+        range 1 20
+        default 10
+
+    config IR_CAPTURE_TASK_STACK_SIZE
+        int "Capture task stack size (bytes)"
+        range 2048 8192
+        default 3072
+        help
+            The heavy buffers live in static storage, so the stack only needs to
+            cover the call chain. 3 KB leaves comfortable headroom.
+
+endmenu

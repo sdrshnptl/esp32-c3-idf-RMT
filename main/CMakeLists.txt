@@ -5,6 +5,9 @@ idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS "."
                     REQUIRES board
                              led_indicator
+                             ir_types
+                             ir_capture
+                             ir_playback
                              bt
                              esp_driver_rmt
                              esp_driver_gpio

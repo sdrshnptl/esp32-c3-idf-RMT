@@ -1,0 +1,13 @@
+menu "IR frame types"
+
+    config IR_FRAME_MAX_EDGES
+        int "Maximum level durations per captured IR frame"
+        range 64 1024
+        default 512
+        help
+            Upper bound on the number of mark/space durations stored for one
+            captured frame. A typical NEC frame uses 68 edges; long air
+            conditioner frames can exceed 300. Frames longer than this are
+            rejected with an overflow event instead of being silently truncated.
+
+endmenu

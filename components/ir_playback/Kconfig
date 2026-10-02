@@ -1,0 +1,20 @@
+menu "IR playback (RMT TX)"
+
+    config IR_PLAYBACK_TX_MEM_SYMBOLS
+        int "RMT TX memory block size (symbols)"
+        range 48 96
+        default 48
+        help
+            Hardware FIFO owned by the TX channel. Must be even and at least
+            SOC_RMT_MEM_WORDS_PER_CHANNEL (48 on the ESP32-C3). The copy encoder
+            refills it in chunks, so it does not need to hold a whole frame.
+
+    config IR_PLAYBACK_TX_TIMEOUT_MS
+        int "Transmission completion timeout (ms)"
+        range 100 20000
+        default 3000
+        help
+            Upper bound for one rmt_tx_wait_all_done() call. A single frame is
+            never longer than about 300 ms, so 3 s only trips on a real fault.
+
+endmenu
