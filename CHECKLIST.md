@@ -13,8 +13,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 | M3 | `ir_capture` (RMT RX, raw learn + repeat de-dup) | `[x]` | 2026-10-02 |
 | M4 | `ir_playback` (RMT TX + 38 kHz carrier, repeats) | `[x]` | 2026-10-02 |
 | M5 | `ir_store` (NVS metadata + SPIFFS blobs, export/import) | `[x]` | 2026-10-02 |
-| M6 | `ble_link` + `protocol` (NimBLE GATT, cJSON RPC, framing) | `[~]` | — |
-| M7 | `docs/` GitHub Pages Web Bluetooth dashboard | `[~]` | — |
+| M6 | `ble_link` + `protocol` (NimBLE GATT, cJSON RPC, framing) | `[x]` | 2026-10-03 |
+| M7 | `docs/` GitHub Pages Web Bluetooth dashboard | `[x]` | 2026-10-03 |
 | M8 | `hotkey` (GPIO0 short press → ≤8 command sequence) | `[ ]` | — |
 | M9 | Hardening: WDT, error paths, unit tests, review checklist | `[ ]` | — |
 
@@ -207,9 +207,11 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
       `_bt_` aliases at identical addresses), which the **Bluetooth** controller needs because
       Wi-Fi and BT share the PHY power domain on the C3. These are PHY power helpers, not the
       Wi-Fi stack.
-- [ ] **Pending external verification:** no Bluetooth adapter on this PC, so discoverability and a
-      live connection can only be proven from the phone. This is the first thing the M7 dashboard
-      does when it connects.
+- [x] **External verification DONE (phone):** Chrome discovered and connected to `IR-RMT-0992`,
+      negotiated **MTU 498**, subscribed to RSP, and held sessions lasting **3.5 minutes**
+      (104634 → 315194 ms) instead of the 10 s failure loop. The dashboard drove nine learn sessions
+      and the store grew to `2 profile(s), 8 command(s), 4016 bytes in SPIFFS` — and survived a
+      reflash. Zero `E` lines in the entire session.
 
 ## M7 — docs/ dashboard
 
@@ -282,10 +284,23 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
       protocol deliberately does not expose them yet: a full bundle can exceed both the 2 KiB
       request and 4 KiB response limits. Doing it properly means streaming the bundle over the
       reserved RAW characteristic with its own offset framing, not raising the caps.
-- [ ] **Pending external verification:** live discovery, connection, learn and play from Chrome on
-      the phone. Serve `docs/` on this PC, `adb reverse tcp:8000 tcp:8000`, then open
-      `http://localhost:8000` in Chrome — localhost is a secure context, so this works without
-      deploying to Pages.
+- [x] **External verification DONE (phone):** live discovery, connection, profile creation and the
+      full learn flow all work from Chrome on the phone over `adb reverse` + `http://localhost:8000`.
+      Two profiles were created and eight buttons learned end-to-end through the dashboard UI.
+- [ ] **Not yet evidenced:** pressing **Play** from the dashboard (IR transmit) has not been
+      confirmed in a captured log. Everything up to and including learn is proven; playback still
+      needs one deliberate test, ideally with the receiving appliance watching.
+- [x] **Console caveat discovered the hard way.** On this SuperMini `/dev/ttyACM0` **is the C3's own
+      native USB peripheral** (it enumerates as "USB JTAG/serial debug unit | Espressif"), not a
+      bridge chip. So *any* reset — including a routine re-flash — kills the console too, and a real
+      brownout or panic would look identical: the log stops and the port vanishes with
+      "device reports readiness to read but returned no data". Never conclude "no crash" from a
+      stopped console; read the **next boot's** reset reason. The reset-reason log added to
+      `main.c` is the correct mitigation, and it reported `USB peripheral (11)` =
+      `ESP_RST_USB` — a benign host-driven reset, not brownout (9), panic (4) or watchdog (5/6/7).
+      Also: only **one** reader may hold the port. The VS Code ESP-IDF extension's monitor and a
+      manual `idf.py monitor` cannot share it — two readers produce the "multiple access" error and
+      garbled output.
 
 ## M8 — hotkey
 

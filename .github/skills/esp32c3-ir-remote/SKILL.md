@@ -131,6 +131,17 @@ Web Bluetooth dashboard hosted on GitHub Pages. **No Wi-Fi, no on-device web ser
     suspecting the firmware. Related: `ESP_LOGD` strings are removed at compile time when the log
     level is higher, so `strings elf | grep '<new LOGD text>'` returning 0 does *not* mean a stale
     build.
+21. **The console IS the chip's own USB peripheral, so every reset hides its own evidence.**
+    `/dev/ttyACM0` on this SuperMini is not a USB-UART bridge — the device enumerates as
+    "USB JTAG/serial debug unit | Espressif". Consequently *any* reset (flash, brownout, panic,
+    watchdog) also drops the console: the log simply stops, the port disappears, and `idf_monitor`
+    reports "device reports readiness to read but returned no data (device disconnected or multiple
+    access on port?)". A genuine brownout is therefore **indistinguishable from a routine re-flash**
+    from the console alone. Mitigation: log `esp_reset_reason()` early in `app_main` and read the
+    **next** boot. Index map from `esp_system.h`: 4 PANIC, 5 INT_WDT, 6 TASK_WDT, 7 WDT,
+    **9 BROWNOUT** (red flag on this board), 11 USB (benign, host-driven). Also, only **one** reader
+    may hold the port — the VS Code ESP-IDF extension's monitor and a manual `idf.py monitor` cannot
+    share it, and two readers corrupt the output.
 4. GPIO8 is a **strapping pin** and drives the LED — never repurpose it, never add a pulldown.
 5. The IR LED must be driven through a transistor/MOSFET; a bare GPIO cannot source the burst current.
 6. Web Bluetooth needs a **secure context** (GitHub Pages HTTPS or localhost) and a user gesture.
