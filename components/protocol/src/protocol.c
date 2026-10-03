@@ -34,6 +34,16 @@
 
 static const char *TAG = "protocol";
 
+/** @brief Sum of every level in a frame, in microseconds. */
+static uint32_t frame_total_us(const ir_frame_t *frame)
+{
+    uint32_t total = 0;
+    for (uint16_t i = 0; i < frame->edge_count; i++) {
+        total += frame->durations[i];
+    }
+    return total;
+}
+
 /* ---- learn state --------------------------------------------------------- */
 
 typedef struct {
@@ -498,6 +508,7 @@ static void learn_finish(const ir_frame_t *frame)
     }
 
     if (err != ESP_OK) {
+        ESP_LOGW(TAG, "learn failed for \"%s\": %s", s_learn.name, esp_err_to_name(err));
         cJSON *data = cJSON_CreateObject();
         cJSON_AddStringToObject(data, "reason", esp_err_to_name(err));
         protocol_emit_event("button.learn_failed", data);
@@ -512,6 +523,10 @@ static void learn_finish(const ir_frame_t *frame)
 
     const size_t limit = CONFIG_PROTOCOL_WAVEFORM_MAX_EDGES;
     const size_t edges = (frame->edge_count < limit) ? frame->edge_count : limit;
+
+    ESP_LOGI(TAG, "learned \"%s\" -> profile %u button %u (%u edges, %u us)", s_learn.name,
+             (unsigned)s_learn.profile_id, (unsigned)button_id, (unsigned)frame->edge_count,
+             (unsigned)frame_total_us(frame));
 
     cJSON *data = cJSON_CreateObject();
     cJSON_AddNumberToObject(data, "profileId", s_learn.profile_id);
@@ -567,6 +582,9 @@ static void cmd_button_learn(const cJSON *args, const cJSON *id)
         send_error(id, "E_CAPTURE", esp_err_to_name(arm));
         return;
     }
+
+    ESP_LOGI(TAG, "listening for \"%s\" into profile %u (timeout %d ms)", s_learn.name,
+             (unsigned)s_learn.profile_id, timeout_ms);
 
     cJSON *data = cJSON_CreateObject();
     cJSON_AddBoolToObject(data, "learning", true);
@@ -845,6 +863,7 @@ static void on_capture(ir_capture_event_t event, const ir_frame_t *frame, void *
         break;
 
     case IR_CAPTURE_EVENT_OVERFLOW: {
+        ESP_LOGW(TAG, "learn: frame too large, session left armed so the user can retry");
         cJSON *data = cJSON_CreateObject();
         cJSON_AddStringToObject(data, "reason", "frame_too_large");
         protocol_emit_event("button.learn_failed", data);
@@ -856,6 +875,7 @@ static void on_capture(ir_capture_event_t event, const ir_frame_t *frame, void *
     }
 
     case IR_CAPTURE_EVENT_TIMEOUT:
+        ESP_LOGI(TAG, "learn: timed out waiting for a frame");
         s_learn.active = false;
         if (led_indicator_set_state(ble_link_is_connected() ? LED_STATE_CONNECTED
                                                             : LED_STATE_ADVERTISING) != ESP_OK) {

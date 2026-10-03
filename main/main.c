@@ -405,9 +405,44 @@ static void store_test(void)
 }
 #endif /* CONFIG_APP_BRINGUP_STORE_TEST */
 
+/**
+ * @brief Log why the chip last restarted, in words.
+ *
+ * A brownout from the IR emitter's current spike and a firmware panic are indistinguishable from the
+ * outside - both just look like "it rebooted". Logging the reason on every boot turns that guess into
+ * a fact, and it costs nothing.
+ */
+static void log_reset_reason(void)
+{
+    const esp_reset_reason_t reason = esp_reset_reason();
+    const char *why;
+
+    switch (reason) {
+    case ESP_RST_POWERON:   why = "power-on"; break;
+    case ESP_RST_EXT:       why = "external pin"; break;
+    case ESP_RST_SW:        why = "software restart"; break;
+    case ESP_RST_PANIC:     why = "PANIC - exception, see the backtrace above"; break;
+    case ESP_RST_INT_WDT:   why = "interrupt watchdog"; break;
+    case ESP_RST_TASK_WDT:  why = "task watchdog"; break;
+    case ESP_RST_WDT:       why = "other watchdog"; break;
+    case ESP_RST_DEEPSLEEP: why = "deep sleep wake"; break;
+    case ESP_RST_BROWNOUT:  why = "BROWNOUT - the supply dipped below threshold"; break;
+    case ESP_RST_SDIO:      why = "SDIO"; break;
+    case ESP_RST_USB:       why = "USB peripheral"; break;
+    case ESP_RST_JTAG:      why = "JTAG"; break;
+    case ESP_RST_EFUSE:     why = "eFuse error"; break;
+    case ESP_RST_PWR_GLITCH: why = "POWER GLITCH detected"; break;
+    case ESP_RST_CPU_LOCKUP: why = "CPU lockup (double exception)"; break;
+    default:                why = "unknown"; break;
+    }
+
+    ESP_LOGI(TAG, "last reset: %s (%d)", why, (int)reason);
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "ESP32-C3 IR remote controller booting (IDF %s)", esp_get_idf_version());
+    log_reset_reason();
 
     ESP_ERROR_CHECK(board_init());
     ESP_ERROR_CHECK(led_indicator_init());
